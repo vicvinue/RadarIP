@@ -59,28 +59,48 @@ struct PrinterStatusView: View {
 
     private func supplyRow(_ s: PrinterSupply) -> some View {
         let pct = s.percent
-        let tint: Color = s.isWaste ? .gray : (pct.map { $0 <= 10 ? .red : ($0 <= 20 ? .orange : colorFor(s)) } ?? .gray)
+        // La barra siempre lleva el color del consumible; el nivel bajo se marca en el porcentaje.
+        let low = !s.isWaste && (pct.map { $0 <= 20 } ?? false)
+        let warn: Color = (pct ?? 100) <= 10 ? .red : .orange
         return VStack(alignment: .leading, spacing: 2) {
             HStack {
                 Text(s.description).lineLimit(1)
                 Text(s.typeName).font(.caption).foregroundStyle(.secondary)
                 Spacer()
-                Text(s.levelText).monospacedDigit().foregroundStyle(pct.map { $0 <= 20 && !s.isWaste } == true ? tint : .primary)
+                if low { Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(warn) }
+                Text(s.levelText).monospacedDigit().foregroundStyle(low ? warn : .primary)
             }
             .font(.callout)
             if let pct {
-                ProgressView(value: Double(pct), total: 100).tint(tint)
+                ProgressView(value: Double(pct), total: 100).tint(SupplyColor.of(s))
             }
         }
     }
+}
 
-    private func colorFor(_ s: PrinterSupply) -> Color {
-        let c = (s.colorant ?? s.description).lowercased()
-        if c.contains("cyan") { return .cyan }
-        if c.contains("magenta") { return Color(red: 0.85, green: 0.2, blue: 0.6) }
-        if c.contains("yellow") || c.contains("amarill") { return .yellow }
-        return .accentColor
+/// Color de la barra según el colorante del consumible (cian, magenta, amarillo, negro…).
+enum SupplyColor {
+    static let black = Color(white: 0.12)
+    static let gray = Color(white: 0.55)
+    static let cyan = Color(red: 0.0, green: 0.76, blue: 0.86)
+    static let magenta = Color(red: 0.89, green: 0.0, blue: 0.55)
+    static let yellow = Color(red: 0.98, green: 0.80, blue: 0.0)
+    static let neutral = Color.secondary
+
+    static func of(_ s: PrinterSupply) -> Color {
+        if s.isWaste { return neutral }
+        let text = "\(s.colorant ?? "") \(s.description)".lowercased()
+        let light = ["light", "claro", "photo cyan", "photo magenta"].contains { text.contains($0) }
+        if has(text, ["cyan", "cian"]) { return light ? cyan.opacity(0.55) : cyan }
+        if has(text, ["magenta"]) { return light ? magenta.opacity(0.55) : magenta }
+        if has(text, ["yellow", "amarill", "jaune", "gelb"]) { return yellow }
+        if has(text, ["gray", "grey", "gris"]) { return gray }
+        if has(text, ["black", "negro", "noir", "schwarz"]) { return black }
+        // Tambor, fusor, kit de mantenimiento o colorante desconocido: color neutro.
+        return neutral
     }
+
+    private static func has(_ text: String, _ words: [String]) -> Bool { words.contains { text.contains($0) } }
 }
 
 // MARK: - Ventana de impresoras
